@@ -113,6 +113,9 @@
         let lastShotTime = 0;
         const shotDelay = 300; // 0.3 seconds between shots
         let currentProblem = { a: 0, b: 0, answer: 0 };
+        let isPaused = false;
+        let pauseTimer = 0;
+        const pauseDuration = 120; // 2 seconds at 60 FPS
 
         // Generate Multiplication Problem
         function generateProblem() {
@@ -160,7 +163,7 @@
         let keys = { ArrowLeft: false, ArrowRight: false, Space: false };
         document.addEventListener('keydown', (e) => {
             if (e.code in keys) keys[e.code] = true;
-            if (e.code === 'Space' && !gameOver) {
+            if (e.code === 'Space' && !gameOver && !isPaused) {
                 const now = Date.now();
                 if (now - lastShotTime >= shotDelay) {
                     bullets.push({ x: player.x + player.width / 2, y: player.y, speed: 6 });
@@ -205,7 +208,7 @@
         // Touch to Fire
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (!gameOver) {
+            if (!gameOver && !isPaused) {
                 const now = Date.now();
                 if (now - lastShotTime >= shotDelay) {
                     bullets.push({ x: player.x + player.width / 2, y: player.y, speed: 6 });
@@ -235,9 +238,95 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            // Move Player (Keyboard or Touch)
-            if ((keys.ArrowLeft || touchLeft) && player.x > 0) player.x -= player.speed;
-            if ((keys.ArrowRight || touchRight) && player.x < canvas.width - player.width) player.x += player.speed;
+            // Handle Pause
+            if (isPaused) {
+                pauseTimer--;
+                if (pauseTimer <= 0) {
+                    isPaused = false;
+                    startNewRound();
+                }
+            } else {
+                // Move Player (Keyboard or Touch)
+                if ((keys.ArrowLeft || touchLeft) && player.x > 0) player.x -= player.speed;
+                if ((keys.ArrowRight || touchRight) && player.x < canvas.width - player.width) player.x += player.speed;
+
+                // Move and Draw Bullets
+                bullets = bullets.filter(b => b.y > 0);
+                bullets.forEach(bullet => {
+                    bullet.y -= bullet.speed;
+                    ctx.fillStyle = 'yellow';
+                    ctx.fillRect(bullet.x - 1.5, bullet.y, 3, 12);
+                });
+
+                // Move and Draw Numbers
+                let edgeHit = false;
+                numbers.forEach(num => {
+                    if (!num.alive) return;
+                    num.x += numberSpeed * numberDirection;
+                    if (num.x + num.width > canvas.width || num.x < 0) edgeHit = true;
+                });
+                if (edgeHit) {
+                    numberDirection *= -1;
+                    numbers.forEach(num => {
+                        if (num.alive) num.y += 30;
+                    });
+                }
+
+                numbers.forEach(num => {
+                    if (!num.alive) return;
+                    ctx.fillStyle = '#00f'; // Blue for all numbers
+                    ctx.fillRect(num.x, num.y, num.width, num.height);
+                    ctx.fillStyle = 'white';
+                    ctx.font = '24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(num.value, num.x + num.width / 2, num.y + num.height / 2);
+
+                    // Check collision with player
+                    if (
+                        player.x < num.x + num.width &&
+                        player.x + player.width > num.x &&
+                        player.y < num.y + num.height &&
+                        player.y + player.height > num.y
+                    ) {
+                        gameOver = true;
+                    }
+                });
+
+                // Bullet-Number Collisions
+                bullets.forEach(bullet => {
+                    numbers.forEach(num => {
+                        if (!num.alive) return;
+                        if (
+                            bullet.x >= num.x &&
+                            bullet.x <= num.x + num.width &&
+                            bullet.y >= num.y &&
+                            bullet.y <= num.y + num.height
+                        ) {
+                            num.alive = false;
+                            hitEffects.push({
+                                value: num.value,
+                                x: num.x,
+                                y: num.y,
+                                width: 60,
+                                height: 60,
+                                isCorrect: num.isCorrect,
+                                timer: 60 // ~1 second at 60 FPS
+                            });
+                            if (num.isCorrect) {
+                                score += 10;
+                                numbers.forEach(n => n.alive = false); // Clear all numbers
+                                bullets = []; // Clear bullets
+                                isPaused = true;
+                                pauseTimer = pauseDuration;
+                            } else {
+                                score -= 5;
+                            }
+                            scoreDisplay.textContent = `Score: ${score}`;
+                        }
+                    });
+                });
+            }
 
             // Draw Player
             if (babyImg.complete && babyImg.naturalWidth > 0) {
@@ -246,81 +335,6 @@
                 ctx.fillStyle = 'white';
                 ctx.fillRect(player.x, player.y, player.width, player.height);
             }
-
-            // Move and Draw Bullets
-            bullets = bullets.filter(b => b.y > 0);
-            bullets.forEach(bullet => {
-                bullet.y -= bullet.speed;
-                ctx.fillStyle = 'yellow';
-                ctx.fillRect(bullet.x - 1.5, bullet.y, 3, 12);
-            });
-
-            // Move and Draw Numbers
-            let edgeHit = false;
-            numbers.forEach(num => {
-                if (!num.alive) return;
-                num.x += numberSpeed * numberDirection;
-                if (num.x + num.width > canvas.width || num.x < 0) edgeHit = true;
-            });
-            if (edgeHit) {
-                numberDirection *= -1;
-                numbers.forEach(num => {
-                    if (num.alive) num.y += 30;
-                });
-            }
-
-            numbers.forEach(num => {
-                if (!num.alive) return;
-                ctx.fillStyle = '#00f'; // Blue for all numbers
-                ctx.fillRect(num.x, num.y, num.width, num.height);
-                ctx.fillStyle = 'white';
-                ctx.font = '24px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(num.value, num.x + num.width / 2, num.y + num.height / 2);
-
-                // Check collision with player
-                if (
-                    player.x < num.x + num.width &&
-                    player.x + player.width > num.x &&
-                    player.y < num.y + num.height &&
-                    player.y + player.height > num.y
-                ) {
-                    gameOver = true;
-                }
-            });
-
-            // Bullet-Number Collisions
-            bullets.forEach(bullet => {
-                numbers.forEach(num => {
-                    if (!num.alive) return;
-                    if (
-                        bullet.x >= num.x &&
-                        bullet.x <= num.x + num.width &&
-                        bullet.y >= num.y &&
-                        bullet.y <= num.y + num.height
-                    ) {
-                        num.alive = false;
-                        hitEffects.push({
-                            value: num.value,
-                            x: num.x,
-                            y: num.y,
-                            width: 60,
-                            height: 60,
-                            isCorrect: num.isCorrect,
-                            timer: 60 // ~1 second at 60 FPS
-                        });
-                        if (num.isCorrect) {
-                            score += 10;
-                            numbers.forEach(n => n.alive = false); // Clear all numbers
-                            startNewRound();
-                        } else {
-                            score -= 5;
-                        }
-                        scoreDisplay.textContent = `Score: ${score}`;
-                    }
-                });
-            });
 
             // Draw Hit Effects
             hitEffects = hitEffects.filter(effect => effect.timer > 0);
