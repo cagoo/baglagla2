@@ -26,7 +26,7 @@
         }
         #gameCanvas {
             border: 1px solid white;
-            background: black;
+            background: black; /* Fallback */
             width: 100%;
             max-width: 450px;
             aspect-ratio: 450 / 600;
@@ -87,9 +87,11 @@
         const leftBtn = document.getElementById('leftBtn');
         const rightBtn = document.getElementById('rightBtn');
 
-        // Load Player Image (optional)
+        // Load Images (optional)
         const babyImg = new Image();
         babyImg.src = 'assets/baby.png';
+        const backgroundImg = new Image();
+        backgroundImg.src = 'assets/background.png';
 
         // Player
         let player = {
@@ -224,6 +226,14 @@
             }
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Background
+            if (backgroundImg.complete && backgroundImg.naturalWidth > 0) {
+                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             // Move Player (Keyboard or Touch)
             if ((keys.ArrowLeft || touchLeft) && player.x > 0) player.x -= player.speed;
