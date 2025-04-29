@@ -77,6 +77,7 @@
     <canvas id="gameCanvas" width="450" height="600"></canvas>
     <div class="controls">
         <div id="leftBtn" class="control-btn">←</div>
+        <div id="soundBtn" class="control-btn">🔇</div>
         <div id="rightBtn" class="control-btn">→</div>
     </div>
     <script>
@@ -86,54 +87,52 @@
         const scoreDisplay = document.getElementById('score');
         const leftBtn = document.getElementById('leftBtn');
         const rightBtn = document.getElementById('rightBtn');
+        const soundBtn = document.getElementById('soundBtn');
 
-        // Load Images (optional)
+        // Load Images
         const babyImg = new Image();
-        babyImg.crossOrigin = 'anonymous'; // Enable CORS
         babyImg.src = 'assets/baby.png';
         const backgroundImg = new Image();
-        backgroundImg.crossOrigin = 'anonymous'; // Enable CORS for background
         backgroundImg.src = 'assets/background.png';
 
-        // Process baby.png for transparency
-        let processedBabyImg = null;
+        // Load Sounds
+        let soundEnabled = false;
+        const fireSound = new Audio('assets/fire.wav');
+        const hitSound = new Audio('assets/hit.wav');
+        const gameOverSound = new Audio('assets/gameover.wav');
+
         babyImg.onload = function() {
-            if (babyImg.naturalWidth > 0) {
-                console.log('baby.png loaded, dimensions:', babyImg.width, 'x', babyImg.height);
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = babyImg.width;
-                tempCanvas.height = babyImg.height;
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCtx.drawImage(babyImg, 0, 0);
-                try {
-                    const imageData = tempCtx.getImageData(0, 0, babyImg.width, babyImg.height);
-                    const data = imageData.data;
-                    for (let i = 0; i < data.length; i += 4) {
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        if (r > 200 && g > 200 && b > 200) { // Near-white
-                            data[i + 3] = 0; // Set alpha to 0
-                        }
-                    }
-                    tempCtx.putImageData(imageData, 0, 0);
-                    processedBabyImg = new Image();
-                    processedBabyImg.src = tempCanvas.toDataURL();
-                    processedBabyImg.onload = function() {
-                        console.log('Processed baby.png with transparency');
-                    };
-                } catch (e) {
-                    console.warn('Cannot process baby.png transparency due to CORS:', e.message);
-                    console.warn('Using unprocessed baby.png; white background may remain');
-                    processedBabyImg = babyImg; // Fallback to unprocessed image
-                }
-            } else {
-                console.error('Failed to load baby.png: invalid image');
-            }
+            console.log('baby.png loaded, dimensions:', babyImg.width, 'x', babyImg.height);
         };
         babyImg.onerror = function() {
             console.error('Error loading baby.png: check assets/baby.png path or file format');
+            console.error('Ensure you are running via a local server (e.g., python -m http.server) or GitHub Pages');
         };
+        backgroundImg.onerror = function() {
+            console.error('Error loading background.png: check assets/background.png path or file format');
+        };
+        fireSound.onerror = function() {
+            console.warn('Error loading fire.wav: check assets/fire.wav path or file format');
+        };
+        hitSound.onerror = function() {
+            console.warn('Error loading hit.wav: check assets/hit.wav path or file format');
+        };
+        gameOverSound.onerror = function() {
+            console.warn('Error loading gameover.wav: check assets/gameover.wav path or file format');
+        };
+
+        // Sound Toggle
+        soundBtn.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            soundBtn.textContent = soundEnabled ? '🔊' : '🔇';
+            console.log('Sound ' + (soundEnabled ? 'enabled' : 'disabled'));
+        });
+        soundBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            soundEnabled = !soundEnabled;
+            soundBtn.textContent = soundEnabled ? '🔊' : '🔇';
+            console.log('Sound ' + (soundEnabled ? 'enabled' : 'disabled'));
+        });
 
         // Player
         let player = {
@@ -194,6 +193,40 @@
         }
 
         // Start New Round
+        function generateProblem() {
+            const a = Math.floor(Math.random() * 10) + 1; // 1-10
+            const b = Math.floor(Math.random() * 10) + 1; // 1-10
+            currentProblem = { a, b, answer: a * b };
+            problemDisplay.textContent = `${a} × ${b} = ?`;
+        }
+
+        // Initialize Numbers (1 row, 5 numbers)
+        function initNumbers() {
+            numbers = [];
+            const correctAnswer = currentProblem.answer;
+            const numberCount = 5;
+            const possibleNumbers = [];
+            for (let i = 1; i <= 100; i++) {
+                if (i !== correctAnswer) possibleNumbers.push(i);
+            }
+            // Shuffle and pick 4 distractors
+            const distractors = possibleNumbers.sort(() => Math.random() - 0.5).slice(0, numberCount - 1);
+            const allNumbers = [...distractors, correctAnswer].sort(() => Math.random() - 0.5);
+            // Position numbers in a row
+            for (let i = 0; i < numberCount; i++) {
+                numbers.push({
+                    value: allNumbers[i],
+                    x: 60 + i * 75,
+                    y: 80,
+                    width: 60,
+                    height: 60,
+                    alive: true,
+                    isCorrect: allNumbers[i] === correctAnswer
+                });
+            }
+        }
+
+        // Start New Round
         function startNewRound() {
             generateProblem();
             initNumbers();
@@ -209,6 +242,10 @@
                 const now = Date.now();
                 if (now - lastShotTime >= shotDelay) {
                     bullets.push({ x: player.x + player.width / 2, y: player.y, speed: 6 });
+                    if (soundEnabled) {
+                        fireSound.currentTime = 0;
+                        fireSound.play().catch(e => console.warn('Fire sound play failed:', e));
+                    }
                     lastShotTime = now;
                 }
             }
@@ -254,6 +291,10 @@
                 const now = Date.now();
                 if (now - lastShotTime >= shotDelay) {
                     bullets.push({ x: player.x + player.width / 2, y: player.y, speed: 6 });
+                    if (soundEnabled) {
+                        fireSound.currentTime = 0;
+                        fireSound.play().catch(e => console.warn('Fire sound play failed:', e));
+                    }
                     lastShotTime = now;
                     console.log('Canvas touched, firing bullet');
                 }
@@ -263,10 +304,22 @@
         // Game Loop
         function gameLoop() {
             if (gameOver) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Draw Background
+                if (backgroundImg.complete && backgroundImg.naturalWidth > 0) {
+                    ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+                } else {
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    console.warn('No background.png loaded; using black background');
+                }
+                // Draw Game Over Text
                 ctx.fillStyle = 'white';
                 ctx.font = '30px Arial';
-                ctx.fillText('Game Over! Score: ' + score, 75, 300);
-                ctx.fillText('Refresh to Restart', 75, 340);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('Game Over! Score: ' + score, 225, 280);
+                ctx.fillText('Refresh to Restart', 225, 320);
                 return;
             }
 
@@ -278,6 +331,7 @@
             } else {
                 ctx.fillStyle = 'black';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                console.warn('No background.png loaded; using black background');
             }
 
             // Handle Pause
@@ -310,7 +364,7 @@
                 if (edgeHit) {
                     numberDirection *= -1;
                     numbers.forEach(num => {
-                        if (num.alive) num.y += 30;
+                        if (num.alive) num.y += 15; // Slower vertical drop
                     });
                 }
 
@@ -345,6 +399,10 @@
                         player.y + player.height > num.y
                     ) {
                         gameOver = true;
+                        if (soundEnabled) {
+                            gameOverSound.currentTime = 0;
+                            gameOverSound.play().catch(e => console.warn('Game over sound play failed:', e));
+                        }
                     }
                 });
 
@@ -368,6 +426,10 @@
                                 isCorrect: num.isCorrect,
                                 timer: 60 // ~1 second at 60 FPS
                             });
+                            if (soundEnabled) {
+                                hitSound.currentTime = 0;
+                                hitSound.play().catch(e => console.warn('Hit sound play failed:', e));
+                            }
                             if (num.isCorrect) {
                                 score += 10;
                                 numbers.forEach(n => n.alive = false); // Clear all numbers
@@ -384,11 +446,8 @@
             }
 
             // Draw Player
-            if (processedBabyImg && processedBabyImg.complete && processedBabyImg.naturalWidth > 0) {
-                ctx.drawImage(processedBabyImg, player.x, player.y, player.width, player.height);
-            } else if (babyImg.complete && babyImg.naturalWidth > 0) {
+            if (babyImg.complete && babyImg.naturalWidth > 0) {
                 ctx.drawImage(babyImg, player.x, player.y, player.width, player.height);
-                console.warn('Using unprocessed baby.png; white background may remain');
             } else {
                 ctx.fillStyle = 'white';
                 ctx.fillRect(player.x, player.y, player.width, player.height);
