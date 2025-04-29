@@ -104,7 +104,7 @@
         let numbers = [];
         let score = 0;
         let gameOver = false;
-        let numberSpeed = 1.5;
+        let numberSpeed = 1.0; // Reduced from 1.5
         let numberDirection = 1;
         let lastShotTime = 0;
         const shotDelay = 300; // 0.3 seconds between shots
@@ -148,7 +148,7 @@
         function startNewRound() {
             generateProblem();
             initNumbers();
-            numberSpeed = 1.5; // Reset speed
+            numberSpeed = 1.0; // Reset speed
         }
         startNewRound();
 
@@ -259,7 +259,7 @@
 
             numbers.forEach(num => {
                 if (!num.alive) return;
-                ctx.fillStyle = num.isCorrect ? '#0f0' : '#f00'; // Green for correct, red for incorrect
+                ctx.fillStyle = '#00f'; // Blue for all numbers
                 ctx.fillRect(num.x, num.y, num.width, num.height);
                 ctx.fillStyle = 'white';
                 ctx.font = '30px Arial';
